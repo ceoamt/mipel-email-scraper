@@ -25,9 +25,9 @@ def normalize_url(url):
     return url
 
 def extract_emails(url):
-    emails = set()
     try:
         r = requests.get(url, headers=HEADERS, timeout=10)
+        print("Status:", url, r.status_code)
         soup = BeautifulSoup(r.text, "html.parser")
 
         for a in soup.select("a[href^=mailto]"):
