@@ -58,7 +58,7 @@ def find_email(site):
 
 def main():
     df = pd.read_csv(INPUT)
-
+    print("Rows found:", len(df))
     if "email" not in df.columns:
         df["email"] = ""
 
