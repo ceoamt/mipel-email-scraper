@@ -74,4 +74,6 @@ def main():
         df.at[i, "email"] = email
 
     df.to_csv(OUTPUT, index=False)
+import os
+print("Files in directory:", os.listdir())
     print("Done.")
