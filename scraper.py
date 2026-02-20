@@ -63,12 +63,15 @@ def main():
         df["email"] = ""
 
     for i, row in df.iterrows():
-        if row["email"]:
-            continue
+    current_email = str(row.get("email", "")).strip()
+    if current_email and current_email.lower() != "nan":
+        continue
 
-        print(f"{i+1}/{len(df)} -> {row.get('ragione_sociale')}")
-        email = find_email(row.get("sito_web"))
-        df.at[i, "email"] = email
+    print(f"{i+1}/{len(df)} -> {row.get('ragione_sociale')}")
+    email = find_email(row.get("sito_web"))
+    df.at[i, "email"] = email
+
+    
 
     df.to_csv(OUTPUT, index=False)
     print("Done.")
