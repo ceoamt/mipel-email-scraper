@@ -3,83 +3,75 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin
+import time
 
-# ====== CONFIG ======
 INPUT = "mipel129_espositori.csv"
 OUTPUT = "mipel129_espositori_con_email.csv"
 
-# pagine contatti da tentare
-CONTACT_PATHS = ["", "contact", "contact-us", "contacts", "contatti", "contatto", "contattaci"]
+CONTACT_PATHS = ["", "contact", "contact-us", "contacts", "contatti", "contatto"]
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.I)
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; MipelScraper/1.0)"
+}
+
 def normalize_url(url):
-    url = url.strip()
-    if not url:
+    if not url or pd.isna(url):
         return ""
+    url = str(url).strip()
     if not url.startswith(("http://", "https://")):
         url = "http://" + url
     return url
 
-def extract_emails_from_url(url, timeout=15):
+def extract_emails(url):
     emails = set()
     try:
-        resp = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
-        html = resp.text
-    except Exception:
-        return set()
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-    soup = BeautifulSoup(html, "html.parser")
+        for a in soup.select("a[href^=mailto]"):
+            mail = a.get("href", "")
+            emails.update(EMAIL_RE.findall(mail))
 
-    # mailto
-    for a in soup.select("a[href^=mailto]"):
-        href = a.get("href", "")
-        for e in EMAIL_RE.findall(href):
-            emails.add(e)
+        text = soup.get_text(" ", strip=True)
+        emails.update(EMAIL_RE.findall(text))
 
-    # testo
-    text = soup.get_text(" ", strip=True)
-    for e in EMAIL_RE.findall(text):
-        emails.add(e)
+    except Exception as e:
+        print("Error:", url, e)
 
     return emails
 
-def find_email_for_site(site):
+def find_email(site):
     site = normalize_url(site)
     if not site:
         return ""
 
-    emails_seen = set()
-
     for path in CONTACT_PATHS:
         url = urljoin(site.rstrip("/") + "/", path)
-        emails = extract_emails_from_url(url)
+        emails = extract_emails(url)
         if emails:
-            emails_seen |= emails
-            break
+            return sorted(emails)[0]
+        time.sleep(1)
 
-    # fallback generico, se proprio nulla
-    if not emails_seen:
-        domain = site.replace("http://", "").replace("https://", "").split("/")[0]
-        if "." in domain:
-            emails_seen.add("info@" + domain)
-
-    return sorted(emails_seen)[0] if emails_seen else ""
+    return ""
 
 def main():
     df = pd.read_csv(INPUT)
+
     if "email" not in df.columns:
         df["email"] = ""
 
-    for idx, row in df.iterrows():
-        if str(row.get("email", "")).strip():
+    for i, row in df.iterrows():
+        if row["email"]:
             continue
-        email = find_email_for_site(str(row.get("sito_web", "")))
-        df.at[idx, "email"] = email
-        print(idx + 1, "/", len(df), row.get("ragione_sociale"), "->", email)
+
+        print(f"{i+1}/{len(df)} -> {row.get('ragione_sociale')}")
+        email = find_email(row.get("sito_web"))
+        df.at[i, "email"] = email
 
     df.to_csv(OUTPUT, index=False)
-    print("DONE:", OUTPUT)
+    print("Done.")
 
 if __name__ == "__main__":
     main()
